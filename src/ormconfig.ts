@@ -11,6 +11,6 @@ export default new DataSource({
   password: process.env.TYPEORM_PASSWORD,
   database: process.env.TYPEORM_DATABASE,
   synchronize: process.env.TYPEORM_SYNCHRONIZE === 'true',
-  entities: ['.dist/src/database/entities/*.entity.js'],
+  entities: ["dist/**/*.entity.js"],
   migrations: ['./dist/src/database/migrations/*.js'],
 });

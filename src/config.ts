@@ -20,9 +20,7 @@ export class Config {
       database: settings.TYPEORM_DATABASE,
       synchronize: settings.TYPEORM_SYNCHRONIZE === 'true',
       bigNumberStrings: false,
-      entities: [
-        __dirname + '/database/entities/*.entity.js',
-      ],
+      entities: ["dist/**/*.entity.js"],
       migrations: [settings.TYPEORM_MIGRATIONS],
     };
   }
