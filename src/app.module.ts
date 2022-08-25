@@ -6,9 +6,10 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { Config } from './config';
 import { WebCrawlerModule } from './web-crawler/web-crawler.module';
+import { NewsModule } from './news/news.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), TypeOrmModule.forRoot(Config.getOrmConfig()), WebCrawlerModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), TypeOrmModule.forRoot(Config.getOrmConfig()), WebCrawlerModule, NewsModule],
   controllers: [AppController],
   providers: [AppService],
 })
