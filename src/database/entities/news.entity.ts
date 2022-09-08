@@ -16,4 +16,7 @@ export class NewsEntity {
 
     @Column({ name: 'content', type: 'text', nullable: true })
     content: string | null;
+
+    @Column({ name: 'link', type: 'text', nullable: false })
+    link: string;
 }
