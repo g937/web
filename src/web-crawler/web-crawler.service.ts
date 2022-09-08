@@ -1,38 +1,56 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 
-import axios from "axios";
+import axios, { AxiosResponse } from "axios";
 import { Repository } from "typeorm";
 import cheerio from "cheerio";
 import util from "util";
 
-const wait = util.promisify(setTimeout);
-
 import { NewsEntity } from "../database/entities/news.entity";
+import { ParsedResultDto } from "./dto/parsed-result.dto";
+
+const wait = util.promisify(setTimeout);
 
 @Injectable()
 export class WebCrawlerService {
   constructor(
     @InjectRepository(NewsEntity)
     private readonly newsRepository: Repository<NewsEntity>,
-  ) {}
+  ) { }
 
   public async cawl(): Promise<void> {
     let pagesToVisit = [
-      "https://index.hu/gazdasag/", 
-      "https://hvg.hu/gazdasag/", 
-      "https://www.origo.hu/gazdasag/index.html",
-      "https://www.portfolio.hu/gazdasag/"
+      "https://hvg.hu",
+      "https://index.hu",
+      "https://www.origo.hu",
+      "https://www.portfolio.hu",
     ];
-    let linksToVisit = [];
-    const visitedLinks = [];
-    let page;
-    for (page of pagesToVisit) {
+
+    const linksToVisit = await this.getLinksFromPages(pagesToVisit);
+    for (const link of linksToVisit) {
+      try {
+        const alreadyCrawled = await this.newsRepository.findOne({ where: { link } })
+
+        if (!alreadyCrawled && !pagesToVisit.includes(link)) {
+          const page = link.split("/gazdasag");
+          const html = await this.getRequest(link);
+          const parsedResult = this.switchParser(page[0], html);
+          await this.saveParsedResult(parsedResult, link);
+          await wait(5000);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }
+
+  async getLinksFromPages(pagesToVisit: string[]): Promise<string[]> {
+    const linksToVisit = [];
+    for (const page of pagesToVisit) {
       const html = await this.getRequest(page);
-      const parsedResult = this.switchParser(page, html, page);
-      visitedLinks.push(page);
+      const parsedResult = this.switchParser(page, html);
       for (const link of parsedResult.links) {
-        if (page == "https://hvg.hu/gazdasag/") {
+        if (page == "https://hvg.hu") {
           linksToVisit.push("https://hvg.hu" + link)
         }
         else {
@@ -40,55 +58,39 @@ export class WebCrawlerService {
         }
       }
     }
-    while (linksToVisit.length > 0) {
-      try {
-        const currentUrl = linksToVisit.pop();
-        if (visitedLinks.includes(currentUrl)) continue;
-        console.log("now crawling " + currentUrl);
-
-        const html = await this.getRequest(currentUrl);
-
-        const parsedResult = this.switchParser(page, html, currentUrl);
-        await this.saveParsedResult(parsedResult);
-
-        console.log(parsedResult);
-        visitedLinks.push(currentUrl);
-        await wait(5000);
-      } catch (err) {
-        console.error(err);
-      }
-    }
+    return linksToVisit;
   }
 
-  switchParser(page, html, currentUrl) {
+  switchParser(page, html): ParsedResultDto {
     switch (page) {
-      case "https://index.hu/gazdasag/":
-        return this.indexParser(html);
-      case "https://hvg.hu/gazdasag/":
+      case "https://hvg.hu":
         return this.hvgParser(html);
-      case "https://www.origo.hu/gazdasag/index.html":
+      case "https://index.hu":
+        return this.indexParser(html);
+      case "https://www.origo.hu":
         return this.origoParser(html);
-      case "https://www.portfolio.hu/gazdasag/":
+      case "https://www.portfolio.hu":
         return this.portfolioParser(html);
     }
   }
 
-  async saveParsedResult(parsedResult) {
-    const data ={
+  async saveParsedResult(parsedResult: any, link: string): Promise<void> {
+    const data = {
       title: parsedResult.title,
       coverUrl: parsedResult.coverUrl,
       lead: parsedResult.lead,
-      content: parsedResult.content
+      content: parsedResult.content,
+      link
     };
     await this.newsRepository.save(data);
   }
 
-  async getRequest(url: string) {
+  async getRequest(url: string): Promise<AxiosResponse> {
     const response = await axios.get(url);
     return response.data;
   }
 
-  hvgParser(html: string) {
+  hvgParser(html: string): ParsedResultDto {
     const $ = cheerio.load(html);
 
     const title = $(".article-title").text().trim();
@@ -100,12 +102,12 @@ export class WebCrawlerService {
     const content = $(".entry-content").text().trim();
 
     const links = $("a").map((index, element) => $(element).attr("href")).get()
-      .filter(link => link.startsWith("/gazdasag/2022"))
+      .filter(link => link.startsWith("/gazdasag/"))
 
     return { title, coverUrl, lead, content, links }
   }
 
-  indexParser(html: string) {
+  indexParser(html: string): ParsedResultDto {
     const $ = cheerio.load(html);
 
     const title = $(".content-title").text().trim();
@@ -117,12 +119,14 @@ export class WebCrawlerService {
     const content = $(".cikk-torzs").text().trim();
 
     const links = $("a").map((index, element) => $(element).attr("href")).get()
-      .filter(link => link.startsWith("https://index.hu/gazdasag/"))
+      .filter(link => link.startsWith("https://index.hu/gazdasag/"));
 
     return { title, coverUrl, lead, content, links }
   }
 
-  origoParser(html: string) {
+  origoParser(html: string): ParsedResultDto {
+    const year = new Date().getFullYear();
+
     const $ = cheerio.load(html);
 
     const title = $(".article-title").text().trim();
@@ -134,12 +138,12 @@ export class WebCrawlerService {
     const content = $(".article-content").text().trim();
 
     const links = $("a").map((index, element) => $(element).attr("href")).get()
-      .filter(link => link.startsWith("https://www.origo.hu/gazdasag/"));
+      .filter(link => link.startsWith(`https://www.origo.hu/gazdasag/${year}`));
 
     return { title, coverUrl, lead, content, links }
   }
 
-  portfolioParser(html: string) {
+  portfolioParser(html: string): ParsedResultDto {
     const $ = cheerio.load(html);
 
     const _title = $(".overlay-content").text().trim();
