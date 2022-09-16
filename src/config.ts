@@ -18,9 +18,9 @@ export class Config {
       username: settings.TYPEORM_USERNAME,
       password: settings.TYPEORM_PASSWORD,
       database: settings.TYPEORM_DATABASE,
-      synchronize: settings.TYPEORM_SYNCHRONIZE === 'true',
+      synchronize: settings.TYPEORM_SYNCHRONIZE === 'false',
       bigNumberStrings: false,
-      entities: ["dist/**/*.entity.js"],
+      entities: ['dist/**/*.entity.js'],
       migrations: [settings.TYPEORM_MIGRATIONS],
     };
   }
