@@ -8,9 +8,6 @@ export class NewsEntity {
     @Column({ name: 'title', type: 'text', nullable: true })
     title: string | null;
 
-    @Column({ name: 'cover_url', type: 'varchar', nullable: true })
-    coverUrl: string | null;
-
     @Column({ name: 'lead', type: 'text', nullable: true })
     lead: string | null;
 
@@ -19,4 +16,7 @@ export class NewsEntity {
 
     @Column({ name: 'link', type: 'text', nullable: false })
     link: string;
+
+    @Column({ name: 'cover_url', type: 'text', nullable: true })
+    coverUrl: string | null;
 }
