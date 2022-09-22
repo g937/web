@@ -10,6 +10,6 @@ export class WebCrawlerController {
 
     @Get()
     async crawl(): Promise<void> {
-        await this.webCrawlerService.cawl();
+        await this.webCrawlerService.crawl();
     }
 }

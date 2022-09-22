@@ -1,13 +1,13 @@
-import { Injectable } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 
-import axios, { AxiosResponse } from "axios";
-import { Repository } from "typeorm";
-import cheerio from "cheerio";
-import util from "util";
+import axios, { AxiosResponse } from 'axios';
+import { Repository } from 'typeorm';
+import cheerio from 'cheerio';
+import util from 'util';
 
-import { NewsEntity } from "../database/entities/news.entity";
-import { ParsedResultDto } from "./dto/parsed-result.dto";
+import { NewsEntity } from '../database/entities/news.entity';
+import { ParsedResultDto } from './dto/parsed-result.dto';
 
 const wait = util.promisify(setTimeout);
 
@@ -16,23 +16,25 @@ export class WebCrawlerService {
   constructor(
     @InjectRepository(NewsEntity)
     private readonly newsRepository: Repository<NewsEntity>,
-  ) { }
+  ) {}
 
-  public async cawl(): Promise<void> {
+  public async crawl(): Promise<void> {
     let pagesToVisit = [
-      "https://hvg.hu",
-      "https://index.hu",
-      "https://www.origo.hu",
-      "https://www.portfolio.hu",
+      'https://hvg.hu',
+      'https://index.hu',
+      'https://www.origo.hu',
+      'https://www.portfolio.hu',
     ];
 
     const linksToVisit = await this.getLinksFromPages(pagesToVisit);
     for (const link of linksToVisit) {
       try {
-        const alreadyCrawled = await this.newsRepository.findOne({ where: { link } })
+        const alreadyCrawled = await this.newsRepository.findOne({
+          where: { link },
+        });
 
         if (!alreadyCrawled && !pagesToVisit.includes(link)) {
-          const page = link.split("/gazdasag");
+          const page = link.split('/gazdasag');
           const html = await this.getRequest(link);
           const parsedResult = this.switchParser(page[0], html);
           await this.saveParsedResult(parsedResult, link);
@@ -45,17 +47,19 @@ export class WebCrawlerService {
   }
 
   async getLinksFromPages(pagesToVisit: string[]): Promise<string[]> {
-    const linksToVisit = [];
+    const linksToVisit: string[] = [];
     for (const page of pagesToVisit) {
+      await wait(5000);
       const html = await this.getRequest(page);
       const parsedResult = this.switchParser(page, html);
-      for (const link of parsedResult.links) {
-        if (page == "https://hvg.hu") {
-          linksToVisit.push("https://hvg.hu" + link)
-        }
-        else {
+      const links = this.filterDuplicatedItems(parsedResult.links);
+      for (const link of links) {
+        if (page == 'https://hvg.hu') {
+          linksToVisit.push('https://hvg.hu' + link);
+        } else {
           linksToVisit.push(link);
         }
+        await wait(5000);
       }
     }
     return linksToVisit;
@@ -63,15 +67,26 @@ export class WebCrawlerService {
 
   switchParser(page, html): ParsedResultDto {
     switch (page) {
-      case "https://hvg.hu":
+      case 'https://hvg.hu':
         return this.hvgParser(html);
-      case "https://index.hu":
+      case 'https://index.hu':
         return this.indexParser(html);
-      case "https://www.origo.hu":
+      case 'https://www.origo.hu':
         return this.origoParser(html);
-      case "https://www.portfolio.hu":
+      case 'https://www.portfolio.hu':
         return this.portfolioParser(html);
     }
+  }
+
+  filterDuplicatedItems(links: string[]): string[] {
+    const filteredLinksToVisit: string[] = [];
+    links.forEach((link: string) => {
+      const alreadyExists = filteredLinksToVisit.includes(link);
+      if (!alreadyExists) {
+        filteredLinksToVisit.push(link);
+      }
+    });
+    return filteredLinksToVisit;
   }
 
   async saveParsedResult(parsedResult: any, link: string): Promise<void> {
@@ -80,7 +95,7 @@ export class WebCrawlerService {
       coverUrl: parsedResult.coverUrl,
       lead: parsedResult.lead,
       content: parsedResult.content,
-      link
+      link,
     };
     await this.newsRepository.save(data);
   }
@@ -93,35 +108,41 @@ export class WebCrawlerService {
   hvgParser(html: string): ParsedResultDto {
     const $ = cheerio.load(html);
 
-    const title = $(".article-title").text().trim();
+    const title = $('.article-title').text().trim();
 
-    const coverUrl = $(".article-cover-img > img").attr("src");
+    const coverUrl = $('.article-cover-img > img').attr('src');
 
-    const lead = $('[data-scroll-event-name="ScrollToArticleLead"]').text().trim();
+    const lead = $('[data-scroll-event-name="ScrollToArticleLead"]')
+      .text()
+      .trim();
 
-    const content = $(".entry-content").text().trim();
+    const content = $('.entry-content').text().trim();
 
-    const links = $("a").map((index, element) => $(element).attr("href")).get()
-      .filter(link => link.startsWith("/gazdasag/"))
+    const links = $('a')
+      .map((index, element) => $(element).attr('href'))
+      .get()
+      .filter((link) => link.startsWith('/gazdasag/'));
 
-    return { title, coverUrl, lead, content, links }
+    return { title, coverUrl, lead, content, links };
   }
 
   indexParser(html: string): ParsedResultDto {
     const $ = cheerio.load(html);
 
-    const title = $(".content-title").text().trim();
+    const title = $('.content-title').text().trim();
 
-    const coverUrl = $(".cikk-cover-v1 > img").attr("src");
+    const coverUrl = $('.cikk-cover-v1 > img').attr('src');
 
-    const lead = $(".lead").text().trim();
+    const lead = $('.lead').text().trim();
 
-    const content = $(".cikk-torzs").text().trim();
+    const content = $('.cikk-torzs').text().trim();
 
-    const links = $("a").map((index, element) => $(element).attr("href")).get()
-      .filter(link => link.startsWith("https://index.hu/gazdasag/"));
+    const links = $('a')
+      .map((index, element) => $(element).attr('href'))
+      .get()
+      .filter((link) => link.startsWith('https://index.hu/gazdasag/'));
 
-    return { title, coverUrl, lead, content, links }
+    return { title, coverUrl, lead, content, links };
   }
 
   origoParser(html: string): ParsedResultDto {
@@ -129,37 +150,43 @@ export class WebCrawlerService {
 
     const $ = cheerio.load(html);
 
-    const title = $(".article-title").text().trim();
+    const title = $('.article-title').text().trim();
 
-    const coverUrl = "https:" + $(".img-holder img").attr("src");
+    const coverUrl = 'https:' + $('.img-holder img').attr('src');
 
-    const lead = $(".article-lead").text().trim();
+    const lead = $('.article-lead').text().trim();
 
-    const content = $(".article-content").text().trim();
+    const content = $('.article-content').text().trim();
 
-    const links = $("a").map((index, element) => $(element).attr("href")).get()
-      .filter(link => link.startsWith(`https://www.origo.hu/gazdasag/${year}`));
+    const links = $('a')
+      .map((index, element) => $(element).attr('href'))
+      .get()
+      .filter((link) =>
+        link.startsWith(`https://www.origo.hu/gazdasag/${year}`),
+      );
 
-    return { title, coverUrl, lead, content, links }
+    return { title, coverUrl, lead, content, links };
   }
 
   portfolioParser(html: string): ParsedResultDto {
     const $ = cheerio.load(html);
 
-    const _title = $(".overlay-content").text().trim();
+    const _title = $('.overlay-content').text().trim();
     const title = _title.slice(14);
 
-    const coverUrl = $(".main-image > img").attr("src");
+    const coverUrl = $('.main-image > img').attr('src');
 
-    const lead = $(".pfarticle-section-lead").text().trim();
+    const lead = $('.pfarticle-section-lead').text().trim();
 
-    const _content = $(".pfarticle-section-content").text().trim();
-    const index = _content.indexOf("Címlapkép");
+    const _content = $('.pfarticle-section-content').text().trim();
+    const index = _content.indexOf('Címlapkép');
     const content = _content.slice(792, index);
 
-    const links = $("a").map((index, element) => $(element).attr("href")).get()
-      .filter(link => link.startsWith("https://www.portfolio.hu/gazdasag/"));
+    const links = $('a')
+      .map((index, element) => $(element).attr('href'))
+      .get()
+      .filter((link) => link.startsWith('https://www.portfolio.hu/gazdasag/'));
 
-    return { title, coverUrl, lead, content, links }
+    return { title, coverUrl, lead, content, links };
   }
 }
