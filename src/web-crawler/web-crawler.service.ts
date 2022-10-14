@@ -92,16 +92,30 @@ export class WebCrawlerService {
   async saveParsedResult(parsedResult: any, link: string): Promise<void> {
     const data = {
       title: parsedResult.title,
-      coverUrl: parsedResult.coverUrl,
+      coverUrl:
+        parsedResult.coverUrl == 'https:undefined'
+          ? null
+          : parsedResult.coverUrl,
       lead: parsedResult.lead,
       content: parsedResult.content,
+      date: parsedResult.date,
       link,
     };
     await this.newsRepository.save(data);
   }
 
   async getRequest(url: string): Promise<AxiosResponse> {
-    const response = await axios.get(url);
+    let response;
+    if (url.includes('https://www.origo.hu')) {
+      response = await axios.get(url, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
+        },
+      });
+    } else {
+      response = await axios.get(url);
+    }
     return response.data;
   }
 
@@ -118,12 +132,14 @@ export class WebCrawlerService {
 
     const content = $('.entry-content').text().trim();
 
+    const date = $('.article-datetime').text().trim();
+
     const links = $('a')
       .map((index, element) => $(element).attr('href'))
       .get()
       .filter((link) => link.startsWith('/gazdasag/'));
 
-    return { title, coverUrl, lead, content, links };
+    return { title, coverUrl, lead, content, date, links };
   }
 
   indexParser(html: string): ParsedResultDto {
@@ -137,12 +153,14 @@ export class WebCrawlerService {
 
     const content = $('.cikk-torzs').text().trim();
 
+    const date = $('.datum').text().trim();
+
     const links = $('a')
       .map((index, element) => $(element).attr('href'))
       .get()
       .filter((link) => link.startsWith('https://index.hu/gazdasag/'));
 
-    return { title, coverUrl, lead, content, links };
+    return { title, coverUrl, lead, content, date, links };
   }
 
   origoParser(html: string): ParsedResultDto {
@@ -158,6 +176,8 @@ export class WebCrawlerService {
 
     const content = $('.article-content').text().trim();
 
+    const date = $('.article-date').text().trim();
+
     const links = $('a')
       .map((index, element) => $(element).attr('href'))
       .get()
@@ -165,7 +185,7 @@ export class WebCrawlerService {
         link.startsWith(`https://www.origo.hu/gazdasag/${year}`),
       );
 
-    return { title, coverUrl, lead, content, links };
+    return { title, coverUrl, lead, content, date, links };
   }
 
   portfolioParser(html: string): ParsedResultDto {
@@ -182,11 +202,17 @@ export class WebCrawlerService {
     const index = _content.indexOf('Címlapkép');
     const content = _content.slice(792, index);
 
+    const _date = $('.d-block').text().trim();
+    const date = _date.replace(
+      'Ezt az űrlapot a reCAPTCHA és a Google védi.Adatvédelmi irányelvek\n\t\t és Szolgáltatási feltételek.',
+      '',
+    );
+
     const links = $('a')
       .map((index, element) => $(element).attr('href'))
       .get()
       .filter((link) => link.startsWith('https://www.portfolio.hu/gazdasag/'));
 
-    return { title, coverUrl, lead, content, links };
+    return { title, coverUrl, lead, content, date, links };
   }
 }
