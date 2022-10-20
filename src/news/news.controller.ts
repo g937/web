@@ -1,8 +1,10 @@
-import { Controller, Get, Param } from "@nestjs/common";
+import {Controller, Get, Param, Query} from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 
 import { NewsEntity } from "../database/entities/news.entity";
 import { NewsService } from "./news.service";
+import {PaginateResponseDto} from "./dto/paginate-response.dto";
+import {ListQueryDto} from "../common/list-query.dto";
 
 @ApiTags('News')
 @Controller('news')
@@ -10,8 +12,8 @@ export class NewsController {
     constructor(private readonly newsService: NewsService) {}
 
     @Get()
-    async getNews(): Promise<NewsEntity[]> {
-        return this.newsService.getNews();
+    async getNews(@Query() query: ListQueryDto): Promise<PaginateResponseDto> {
+        return this.newsService.getNews(query);
     }
 
     @Get(':id')
