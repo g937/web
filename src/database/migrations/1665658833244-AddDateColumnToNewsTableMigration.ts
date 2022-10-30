@@ -7,7 +7,7 @@ export class AddDateColumnToNewsTableMigration1665658833244 implements Migration
             'news',
             new TableColumn({
                 name: 'date',
-                type: 'varchar',
+                type: 'datetime',
                 isNullable: true,
             }),
         );

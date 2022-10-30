@@ -4,9 +4,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { NewsEntity } from '../database/entities/news.entity';
-import {paginate} from "../common/paginate";
-import {PaginateResponseDto} from "./dto/paginate-response.dto";
-import {ListQueryDto} from "../common/list-query.dto";
+import { paginate } from '../common/paginate';
+import { PaginateResponseDto } from './dto/paginate-response.dto';
+import { ListQueryDto } from '../common/list-query.dto';
 
 @Injectable()
 export class NewsService {
@@ -18,14 +18,13 @@ export class NewsService {
   async getNews(query: ListQueryDto): Promise<PaginateResponseDto> {
     const news = await this.newsRepository
       .createQueryBuilder('news')
-      .where('news.title != :title', { title: '' })
-      .orderBy('news.id', 'DESC')
+      .orderBy('news.date', 'DESC')
       .getMany();
 
     return { total: news.length, data: paginate(news, query.page) };
   }
 
-  async getNew(id: number): Promise<NewsEntity> {
+  async getOne(id: number): Promise<NewsEntity> {
     return this.newsRepository.findOne({ where: { id } });
   }
 }

@@ -20,6 +20,6 @@ export class NewsEntity {
     @Column({ name: 'cover_url', type: 'text', nullable: true })
     coverUrl: string | null;
 
-    @Column({ name: 'date', type: 'varchar', nullable: true })
-    date: string | null;
+    @Column({ name: 'date', type: 'datetime', nullable: true })
+    date: Date | null;
 }

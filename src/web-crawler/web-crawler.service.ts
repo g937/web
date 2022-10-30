@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 import axios, { AxiosResponse } from 'axios';
 import { Repository } from 'typeorm';
 import cheerio from 'cheerio';
 import util from 'util';
+import dayjs from 'dayjs';
 
 import { NewsEntity } from '../database/entities/news.entity';
 import { ParsedResultDto } from './dto/parsed-result.dto';
@@ -16,7 +18,7 @@ export class WebCrawlerService {
   constructor(
     @InjectRepository(NewsEntity)
     private readonly newsRepository: Repository<NewsEntity>,
-  ) {}
+  ) { }
 
   public async crawl(): Promise<void> {
     let pagesToVisit = [
@@ -33,10 +35,10 @@ export class WebCrawlerService {
           where: { link },
         });
 
-        if (!alreadyCrawled && !pagesToVisit.includes(link)) {
-          const page = link.split('/gazdasag');
+        if (!alreadyCrawled) {
+          let page = link.split('/gazdasag');
           const html = await this.getRequest(link);
-          const parsedResult = this.switchParser(page[0], html);
+          const parsedResult = this.switchParser(page[0].includes('dex.hu') ? 'https://index.hu' : page[0], html);
           await this.saveParsedResult(parsedResult, link);
           await wait(5000);
         }
@@ -56,6 +58,8 @@ export class WebCrawlerService {
       for (const link of links) {
         if (page == 'https://hvg.hu') {
           linksToVisit.push('https://hvg.hu' + link);
+        } else if (page == 'https://www.portfolio.hu') {
+          linksToVisit.push('https://www.portfolio.hu' + link);
         } else {
           linksToVisit.push(link);
         }
@@ -90,33 +94,29 @@ export class WebCrawlerService {
   }
 
   async saveParsedResult(parsedResult: any, link: string): Promise<void> {
-    const data = {
-      title: parsedResult.title,
-      coverUrl:
-        parsedResult.coverUrl == 'https:undefined'
-          ? null
-          : parsedResult.coverUrl,
-      lead: parsedResult.lead,
-      content: parsedResult.content,
-      date: parsedResult.date,
-      link,
-    };
-    await this.newsRepository.save(data);
+    if (!(parsedResult?.title === undefined || parsedResult?.title === '')) {
+      const data = {
+        title: parsedResult.title,
+        coverUrl:
+          parsedResult.coverUrl == 'https:undefined'
+            ? null
+            : parsedResult.coverUrl,
+        lead: parsedResult.lead,
+        content: parsedResult.content,
+        date: parsedResult.date,
+        link,
+      };
+      await this.newsRepository.save(data);
+    }
   }
 
   async getRequest(url: string): Promise<AxiosResponse> {
-    let response;
-    if (url.includes('https://www.origo.hu')) {
-      response = await axios.get(url, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36',
-        },
-      });
-    } else {
-      response = await axios.get(url);
+    try {
+      const response = await axios.get(url);
+      return response.data;
+    } catch (error) {
+      console.log(error)
     }
-    return response.data;
   }
 
   hvgParser(html: string): ParsedResultDto {
@@ -130,9 +130,14 @@ export class WebCrawlerService {
       .text()
       .trim();
 
-    const content = $('.entry-content').text().trim();
+    const content = $(
+      '.entry-content > p, .entry-content > blockquote, .entry-content > h1, .entry-content > h2, .entry-content > h3, .entry-content > h4, .entry-content > ul',
+    )
+      .text()
+      .trim();
 
-    const date = $('.article-datetime').text().trim();
+    const _date = $('.article-datetime').text().trim();
+    const date = this.dateParser(_date);
 
     const links = $('a')
       .map((index, element) => $(element).attr('href'))
@@ -151,14 +156,19 @@ export class WebCrawlerService {
 
     const lead = $('.lead').text().trim();
 
-    const content = $('.cikk-torzs').text().trim();
+    const content = $(
+      '.cikk-torzs > p, .cikk-torzs > blockquote, .cikk-torzs > h1, .cikk-torzs > h2, .cikk-torzs > h3, .cikk-torzs > h4, .cikk-torzs > ul, .eyecatcher_long, .eyecatcher_short',
+    )
+      .text()
+      .trim();
 
-    const date = $('.datum').text().trim();
+    const _date = $('.datum').text().trim();
+    const date = this.dateParser(_date);
 
     const links = $('a')
       .map((index, element) => $(element).attr('href'))
       .get()
-      .filter((link) => link.startsWith('https://index.hu/gazdasag/'));
+      .filter((link) => link.includes('gazdasag'));
 
     return { title, coverUrl, lead, content, date, links };
   }
@@ -174,9 +184,14 @@ export class WebCrawlerService {
 
     const lead = $('.article-lead').text().trim();
 
-    const content = $('.article-content').text().trim();
+    const content = $(
+      '.article-content > p, .article-content > span, .article-content > h1, .article-content > h2, .article-content > h3, .article-content > h4, .article-content > ul',
+    )
+      .text()
+      .trim();
 
-    const date = $('.article-date').text().trim();
+    const _date = $('.article-date').text().trim();
+    const date = this.dateParser(_date);
 
     const links = $('a')
       .map((index, element) => $(element).attr('href'))
@@ -189,6 +204,7 @@ export class WebCrawlerService {
   }
 
   portfolioParser(html: string): ParsedResultDto {
+    const year = new Date().getFullYear();
     const $ = cheerio.load(html);
 
     const _title = $('.overlay-content').text().trim();
@@ -198,21 +214,85 @@ export class WebCrawlerService {
 
     const lead = $('.pfarticle-section-lead').text().trim();
 
-    const _content = $('.pfarticle-section-content').text().trim();
-    const index = _content.indexOf('Címlapkép');
-    const content = _content.slice(792, index);
+    const content = $(
+      '.pfarticle-section-content > p, .pfarticle-section-content > h1, .pfarticle-section-content > h2, .pfarticle-section-content > h3, .pfarticle-section-content > h4, .pfarticle-section-content > ul',
+    )
+      .text()
+      .trim();
 
     const _date = $('.d-block').text().trim();
-    const date = _date.replace(
+    const cuttedDate = _date.replace(
       'Ezt az űrlapot a reCAPTCHA és a Google védi.Adatvédelmi irányelvek\n\t\t és Szolgáltatási feltételek.',
       '',
     );
+    const date = this.dateParser(cuttedDate);
 
     const links = $('a')
       .map((index, element) => $(element).attr('href'))
       .get()
-      .filter((link) => link.startsWith('https://www.portfolio.hu/gazdasag/'));
+      .filter((link) => link.startsWith(`/gazdasag/${year}`));
 
     return { title, coverUrl, lead, content, date, links };
+  }
+
+  dateParser(date: string): Date {
+    const months = [
+      'január',
+      'február',
+      'március',
+      'április',
+      'május',
+      'június',
+      'július',
+      'augusztus',
+      'szeptember',
+      'október',
+      'november',
+      'december',
+    ];
+    let replacedDate;
+    months.forEach((month: string) => {
+      if (date.includes(month)) {
+        const replaceValue = this.convertMonth(month);
+        replacedDate = date.replace(` ${month} `, replaceValue);
+      }
+    });
+    const formattedDate = dayjs(date).format();
+    const newDate = new Date(formattedDate);
+    return newDate;
+  }
+
+  convertMonth(month: string): string {
+    switch (month) {
+      case 'január':
+        return '01.';
+      case 'február':
+        return '02.';
+      case 'március':
+        return '03';
+      case 'április':
+        return '04.';
+      case 'május':
+        return '05.';
+      case 'június':
+        return '06.';
+      case 'július':
+        return '07.';
+      case 'augusztus':
+        return '08.';
+      case 'szeptember':
+        return '09.';
+      case 'október':
+        return '10.';
+      case 'november':
+        return '11.';
+      case 'december':
+        return '12.';
+    }
+  }
+
+  @Cron(CronExpression.EVERY_5_HOURS, { name: 'crawl' })
+  async crawlCron(): Promise<void> {
+    await this.crawl();
   }
 }
