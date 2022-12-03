@@ -36,7 +36,7 @@ export class WebCrawlerService {
         });
 
         if (!alreadyCrawled) {
-          let page = link.split('/gazdasag');
+          const page = link.split('/gazdasag');
           const html = await this.getRequest(link);
           const parsedResult = this.switchParser(page[0].includes('dex.hu') ? 'https://index.hu' : page[0], html);
           await this.saveParsedResult(parsedResult, link);
@@ -106,7 +106,11 @@ export class WebCrawlerService {
         date: parsedResult.date,
         link,
       };
-      await this.newsRepository.save(data);
+      try {
+        await this.newsRepository.save(data);
+      } catch (error) {
+        console.log(error);
+      }
     }
   }
 

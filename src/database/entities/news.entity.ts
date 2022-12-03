@@ -5,7 +5,7 @@ export class NewsEntity {
     @PrimaryGeneratedColumn({ name: 'id', type: 'int' })
     id: number;
 
-    @Column({ name: 'title', type: 'text', nullable: true })
+    @Column({ name: 'title', type: 'varchar', nullable: true })
     title: string | null;
 
     @Column({ name: 'lead', type: 'text', nullable: true })
