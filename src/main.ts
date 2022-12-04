@@ -22,6 +22,6 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup(configService.get('DOCUMENTATION_URL') || 'api', app, document);
 
-    await app.listen(configService.get('PORT') || 3000);
+    await app.listen(configService.get('PORT') || 3001);
 }
 bootstrap();

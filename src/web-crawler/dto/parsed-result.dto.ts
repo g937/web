@@ -7,7 +7,7 @@ export class ParsedResultDto {
 
     content?: string | null;
 
-    date?: string | null;
+    date?: Date | null;
 
     links: string[];
 }
